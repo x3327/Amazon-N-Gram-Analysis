@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>N-gram Automation Tool</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>N-gram Automation Tool</h1>
+            <p class="subtitle">Automate N-gram analysis for Amazon PPC campaigns</p>
+        </header>
+
+        <main>
+            <!-- Upload Section -->
+            <section class="upload-section">
+                <div class="upload-box" id="upload-box">
+                    <div class="upload-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="17 8 12 3 7 8"></polyline>
+                            <line x1="12" y1="3" x2="12" y2="15"></line>
+                        </svg>
+                    </div>
+                    <h3>Upload Search Term Report</h3>
+                    <p>Drag and drop your CSV file here, or click to browse</p>
+                    <input type="file" id="file-input" accept=".csv" hidden>
+                    <button class="btn btn-primary" id="browse-btn">Browse Files</button>
+                </div>
+                <p class="file-info" id="file-info"></p>
+            </section>
+
+            <!-- Settings Section -->
+            <section class="settings-section" id="settings-section" style="display: none;">
+                <h3>Configuration (Optional)</h3>
+                <div class="settings-grid">
+                    <div class="setting-item">
+                        <label for="min-clicks">Minimum clicks for NE flag:</label>
+                        <input type="number" id="min-clicks" value="3" min="1" max="100">
+                        <span class="setting-help">N-grams with this many clicks and 0 orders will be flagged as NE</span>
+                    </div>
+                    <div class="setting-item">
+                        <label for="min-spend">Minimum spend for NP flag ($):</label>
+                        <input type="number" id="min-spend" value="0.01" min="0" step="0.01">
+                        <span class="setting-help">N-grams with spend above this and $0 sales will be flagged as NP</span>
+                    </div>
+                </div>
+                <button class="btn btn-success" id="process-btn">Process File</button>
+            </section>
+
+            <!-- Progress Section -->
+            <section class="progress-section" id="progress-section" style="display: none;">
+                <div class="progress-container">
+                    <div class="spinner"></div>
+                    <h3>Processing your file...</h3>
+                    <p id="progress-text">Parsing CSV data...</p>
+                </div>
+            </section>
+
+            <!-- Results Section -->
+            <section class="results-section" id="results-section" style="display: none;">
+                <h3>Processing Complete!</h3>
+                
+                <div class="summary-cards">
+                    <div class="summary-card">
+                        <span class="summary-value" id="total-rows">0</span>
+                        <span class="summary-label">Total Rows</span>
+                    </div>
+                    <div class="summary-card">
+                        <span class="summary-value" id="asins-removed">0</span>
+                        <span class="summary-label">ASINs Removed</span>
+                    </div>
+                    <div class="summary-card">
+                        <span class="summary-value" id="campaigns-count">0</span>
+                        <span class="summary-label">Campaigns</span>
+                    </div>
+                    <div class="summary-card">
+                        <span class="summary-value" id="flagged-count">0</span>
+                        <span class="summary-label">Items Flagged</span>
+                    </div>
+                </div>
+
+                <div class="metrics-summary">
+                    <div class="metric">
+                        <span class="metric-label">Total Spend:</span>
+                        <span class="metric-value" id="total-spend">$0.00</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Total Sales:</span>
+                        <span class="metric-value" id="total-sales">$0.00</span>
+                    </div>
+                </div>
+
+                <div class="campaigns-list" id="campaigns-list">
+                    <h4>Campaigns Processed:</h4>
+                    <ul id="campaign-names"></ul>
+                </div>
+
+                <div class="download-section">
+                    <button class="btn btn-download" id="download-btn">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="7 10 12 15 17 10"></polyline>
+                            <line x1="12" y1="15" x2="12" y2="3"></line>
+                        </svg>
+                        Download Excel Report
+                    </button>
+                </div>
+
+                <button class="btn btn-secondary" id="reset-btn">Process Another File</button>
+            </section>
+
+            <!-- Error Section -->
+            <section class="error-section" id="error-section" style="display: none;">
+                <div class="error-box">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="15" y1="9" x2="9" y2="15"></line>
+                        <line x1="9" y1="9" x2="15" y2="15"></line>
+                    </svg>
+                    <h3>Error Processing File</h3>
+                    <p id="error-message"></p>
+                    <button class="btn btn-primary" id="retry-btn">Try Again</button>
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            <p>N-gram Automation Tool | Optimizing Amazon PPC Campaigns</p>
+        </footer>
+    </div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
