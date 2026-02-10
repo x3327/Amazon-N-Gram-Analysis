@@ -91,7 +91,7 @@ def parse_csv(file_path: str) -> pd.DataFrame:
     return df
 
 
-def filter_asins(df: pd.DataFrame) -> Tuple[pd.DataFrame, int]:
+def filter_asins(df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame, int]:
     """
     Filter out rows where search term starts with 'B0' (ASIN pattern).
     
@@ -99,10 +99,10 @@ def filter_asins(df: pd.DataFrame) -> Tuple[pd.DataFrame, int]:
         df: DataFrame with search term data
         
     Returns:
-        Tuple of (filtered DataFrame, count of removed rows)
+        Tuple of (filtered DataFrame without ASINs, DataFrame with only ASINs, count of ASINs)
     """
     if 'search_term' not in df.columns:
-        return df, 0
+        return df, pd.DataFrame(), 0
     
     # Count rows before filtering
     original_count = len(df)
@@ -111,12 +111,16 @@ def filter_asins(df: pd.DataFrame) -> Tuple[pd.DataFrame, int]:
     # ASIN pattern: starts with B0 followed by alphanumeric characters
     asin_pattern = r'^[Bb]0[A-Za-z0-9]+'
     
+    # Mask for non-ASIN rows
     mask = ~df['search_term'].astype(str).str.match(asin_pattern, na=False)
     df_filtered = df[mask].copy()
     
-    removed_count = original_count - len(df_filtered)
+    # Get ASIN rows
+    df_asins = df[~mask].copy()
     
-    return df_filtered, removed_count
+    asin_count = len(df_asins)
+    
+    return df_filtered, df_asins, asin_count
 
 
 def group_by_campaign(df: pd.DataFrame) -> Dict[str, pd.DataFrame]:
