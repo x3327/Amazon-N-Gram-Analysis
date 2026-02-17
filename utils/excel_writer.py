@@ -473,29 +473,19 @@ def create_asin_report(df_asins: pd.DataFrame, output_path: str) -> str:
     
     current_row += 1
     
-    # Write data rows
+    # Write data rows (all rows without grouping/deduplication)
     if not df_asins.empty:
-        # Group by ASIN and aggregate stats
-        asin_grouped = df_asins.groupby('search_term').agg({
-            'campaign': 'first',
-            'ad_group': 'first' if 'ad_group' in df_asins.columns else lambda x: '',
-            'impressions': 'sum',
-            'clicks': 'sum',
-            'spend': 'sum',
-            'sales': 'sum',
-            'orders': 'sum' if 'orders' in df_asins.columns else lambda x: 0,
-        }).reset_index()
-        
-        # Calculate ACOS
-        asin_grouped['acos'] = asin_grouped.apply(
+        # Calculate ACOS for each row
+        df_asins = df_asins.copy()
+        df_asins['acos'] = df_asins.apply(
             lambda row: (row['spend'] / row['sales'] * 100) if row['sales'] > 0 else 0, 
             axis=1
         )
         
         # Sort by spend descending
-        asin_grouped = asin_grouped.sort_values('spend', ascending=False)
+        df_asins = df_asins.sort_values('spend', ascending=False)
         
-        for _, row in asin_grouped.iterrows():
+        for _, row in df_asins.iterrows():
             for col_idx, (col_key, col_name, col_width) in enumerate(asin_columns, 1):
                 value = row.get(col_key, '')
                 
