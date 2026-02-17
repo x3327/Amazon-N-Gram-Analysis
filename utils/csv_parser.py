@@ -56,6 +56,7 @@ def standardize_columns(df: pd.DataFrame) -> pd.DataFrame:
 def parse_csv(file_path: str) -> pd.DataFrame:
     """
     Parse a CSV file and return a standardized DataFrame.
+    Handles various CSV formats and encoding issues.
     
     Args:
         file_path: Path to the CSV file
@@ -63,12 +64,47 @@ def parse_csv(file_path: str) -> pd.DataFrame:
     Returns:
         Standardized DataFrame with consistent column names
     """
-    try:
-        # Try reading with UTF-8 encoding first
-        df = pd.read_csv(file_path, encoding='utf-8')
-    except UnicodeDecodeError:
-        # Fall back to latin-1 encoding
-        df = pd.read_csv(file_path, encoding='latin-1')
+    df = None
+    encodings = ['utf-8', 'latin-1', 'cp1252', 'iso-8859-1']
+    
+    # Try different encodings and parsing options
+    for encoding in encodings:
+        try:
+            # Try with default settings first
+            df = pd.read_csv(file_path, encoding=encoding, on_bad_lines='skip')
+            break
+        except Exception:
+            try:
+                # Try with python engine (more forgiving)
+                df = pd.read_csv(file_path, encoding=encoding, engine='python', on_bad_lines='skip')
+                break
+            except Exception:
+                try:
+                    # Try with semicolon separator (European format)
+                    df = pd.read_csv(file_path, encoding=encoding, sep=';', on_bad_lines='skip')
+                    break
+                except Exception:
+                    continue
+    
+    if df is None:
+        # Last resort: try reading line by line and skip problematic lines
+        try:
+            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                lines = f.readlines()
+            
+            # Find the header line (usually line with 'Campaign' or 'Search Term')
+            header_line = 0
+            for i, line in enumerate(lines[:20]):  # Check first 20 lines
+                if 'Campaign' in line or 'Search Term' in line or 'search_term' in line.lower():
+                    header_line = i
+                    break
+            
+            # Read from header line, skipping bad lines
+            from io import StringIO
+            csv_content = '\n'.join(lines[header_line:])
+            df = pd.read_csv(StringIO(csv_content), on_bad_lines='skip')
+        except Exception as e:
+            raise Exception(f"Unable to parse CSV file. Error: {str(e)}")
     
     # Standardize column names
     df = standardize_columns(df)
