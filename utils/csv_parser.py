@@ -10,33 +10,51 @@ from typing import Dict, List, Tuple
 
 # Column mapping for Amazon Search Term Report
 COLUMN_MAPPING = {
-    'date': ['Date', 'date'],
-    'portfolio': ['Portfolio name', 'Portfolio Name', 'portfolio name'],
+    'date': ['Date', 'date', 'Start Date', 'End Date'],
+    'portfolio': ['Portfolio name', 'Portfolio Name', 'portfolio name', 'Portfolio'],
     'currency': ['Currency', 'currency'],
-    'campaign': ['Campaign Name', 'Campaign name', 'campaign name', 'Campaign'],
-    'ad_group': ['Ad Group Name', 'Ad Group name', 'ad group name', 'Ad Group'],
-    'targeting': ['Targeting', 'targeting'],
+    'campaign': ['Campaign Name', 'Campaign name', 'campaign name', 'Campaign', 'CampaignName', 'campaign_name'],
+    'ad_group': ['Ad Group Name', 'Ad Group name', 'ad group name', 'Ad Group', 'AdGroup', 'ad_group'],
+    'targeting': ['Targeting', 'targeting', 'Targeting Expression'],
     'match_type': ['Match Type', 'Match type', 'match type'],
-    'search_term': ['Customer Search Term', 'Search Term', 'search term', 'Search term'],
-    'impressions': ['Impressions', 'impressions'],
+    'search_term': ['Customer Search Term', 'Search Term', 'search term', 'Search term', 'Keyword', 'keyword', 'Query', 'query', 'SearchTerm', 'search_term'],
+    'impressions': ['Impressions', 'impressions', 'Impr.', 'impr'],
     'clicks': ['Clicks', 'clicks'],
-    'ctr': ['Click-Thru Rate (CTR)', 'CTR', 'ctr'],
+    'ctr': ['Click-Thru Rate (CTR)', 'CTR', 'ctr', 'Click-Through Rate'],
     'cpc': ['Cost Per Click (CPC)', 'CPC', 'cpc'],
-    'spend': ['Spend', 'spend', 'Cost'],
-    'sales': ['7 Day Total Sales', 'Sales', 'sales', '14 Day Total Sales', 'Total Sales'],
-    'acos': ['Total Advertising Cost of Sales (ACOS)', 'ACOS', 'acos'],
+    'spend': ['Spend', 'spend', 'Cost', 'cost', 'Total Spend'],
+    'sales': ['7 Day Total Sales', 'Sales', 'sales', '14 Day Total Sales', 'Total Sales', '7 Day Sales', '14 Day Sales', 'Total Sales (14d)'],
+    'acos': ['Total Advertising Cost of Sales (ACOS)', 'ACOS', 'acos', 'Acos'],
     'roas': ['Total Return on Advertising Spend (ROAS)', 'ROAS', 'roas'],
-    'orders': ['7 Day Total Orders (#)', 'Orders', 'orders', '14 Day Total Orders (#)', 'Total Orders'],
-    'units': ['7 Day Total Units (#)', 'Units', 'units', '14 Day Total Units (#)'],
+    'orders': ['7 Day Total Orders (#)', 'Orders', 'orders', '14 Day Total Orders (#)', 'Total Orders', '7 Day Orders', '14 Day Orders', 'Total Orders (14d)'],
+    'units': ['7 Day Total Units (#)', 'Units', 'units', '14 Day Total Units (#)', 'Total Units'],
     'conversion_rate': ['7 Day Conversion Rate', 'Conversion Rate', 'conversion rate']
 }
 
 
 def find_column(df: pd.DataFrame, possible_names: List[str]) -> str:
-    """Find the actual column name from a list of possible names."""
+    """Find the actual column name from a list of possible names (case-insensitive)."""
+    # First try exact match
     for name in possible_names:
         if name in df.columns:
             return name
+    
+    # Try case-insensitive match
+    df_columns_lower = {col.lower(): col for col in df.columns}
+    for name in possible_names:
+        if name.lower() in df_columns_lower:
+            return df_columns_lower[name.lower()]
+    
+    return None
+
+
+def find_column_fuzzy(df: pd.DataFrame, keywords: List[str]) -> str:
+    """Find column by checking if any keyword is in the column name."""
+    for col in df.columns:
+        col_lower = col.lower()
+        for keyword in keywords:
+            if keyword.lower() in col_lower:
+                return col
     return None
 
 
@@ -45,79 +63,140 @@ def standardize_columns(df: pd.DataFrame) -> pd.DataFrame:
     column_renames = {}
     
     for standard_name, possible_names in COLUMN_MAPPING.items():
+        # Try exact match first
         actual_name = find_column(df, possible_names)
         if actual_name:
             column_renames[actual_name] = standard_name
+        else:
+            # Try fuzzy match as fallback
+            fuzzy_keywords = {
+                'search_term': ['search', 'term', 'customer'],
+                'impressions': ['impression'],
+                'clicks': ['click'],
+                'spend': ['spend', 'cost'],
+                'campaign': ['campaign'],
+                'sales': ['sales'],
+                'orders': ['order'],
+                'acos': ['acos'],
+                'ctr': ['ctr', 'click-thru'],
+            }
+            if standard_name in fuzzy_keywords:
+                actual_name = find_column_fuzzy(df, fuzzy_keywords[standard_name])
+                if actual_name:
+                    column_renames[actual_name] = standard_name
     
     df = df.rename(columns=column_renames)
     return df
 
 
+def detect_file_type(file_path: str) -> str:
+    """Detect if file is CSV or Excel based on extension and content."""
+    import os
+    ext = os.path.splitext(file_path)[1].lower()
+    
+    if ext in ['.xlsx', '.xls']:
+        return 'excel'
+    elif ext == '.csv':
+        return 'csv'
+    else:
+        # Try to detect by reading first few bytes
+        with open(file_path, 'rb') as f:
+            header = f.read(4)
+            if header == b'PK\x03\x04':  # ZIP/XLSX signature
+                return 'excel'
+        return 'csv'
+
+
 def parse_csv(file_path: str) -> pd.DataFrame:
     """
-    Parse a CSV file and return a standardized DataFrame.
-    Handles various CSV formats and encoding issues.
+    Parse a CSV or Excel file and return a standardized DataFrame.
+    Handles various file formats and encoding issues.
     
     Args:
-        file_path: Path to the CSV file
+        file_path: Path to the file
         
     Returns:
         Standardized DataFrame with consistent column names
     """
-    df = None
-    encodings = ['utf-8', 'latin-1', 'cp1252', 'iso-8859-1']
+    import sys
     
-    # Try different encodings and parsing options
-    for encoding in encodings:
+    df = None
+    file_type = detect_file_type(file_path)
+    
+    # Try reading as Excel first if it looks like Excel
+    if file_type == 'excel':
         try:
-            # Try with default settings first
-            df = pd.read_csv(file_path, encoding=encoding, on_bad_lines='skip')
-            break
-        except Exception:
+            df = pd.read_excel(file_path)
+            print(f"DEBUG: Successfully read as Excel file", file=sys.stderr)
+        except Exception as e:
+            print(f"DEBUG: Excel read failed: {e}", file=sys.stderr)
+    
+    # If Excel failed or it's CSV, try CSV parsing
+    if df is None:
+        encodings = ['utf-8-sig', 'utf-8', 'latin-1', 'cp1252', 'iso-8859-1', 'windows-1252']
+        
+        for encoding in encodings:
             try:
-                # Try with python engine (more forgiving)
-                df = pd.read_csv(file_path, encoding=encoding, engine='python', on_bad_lines='skip')
+                df = pd.read_csv(file_path, encoding=encoding, on_bad_lines='skip', low_memory=False)
+                print(f"DEBUG: Successfully read CSV with {encoding} encoding", file=sys.stderr)
                 break
             except Exception:
                 try:
-                    # Try with semicolon separator (European format)
-                    df = pd.read_csv(file_path, encoding=encoding, sep=';', on_bad_lines='skip')
+                    df = pd.read_csv(file_path, encoding=encoding, engine='python', on_bad_lines='skip')
+                    print(f"DEBUG: Successfully read CSV with {encoding} encoding (python engine)", file=sys.stderr)
                     break
                 except Exception:
-                    continue
+                    try:
+                        df = pd.read_csv(file_path, encoding=encoding, sep=';', on_bad_lines='skip')
+                        print(f"DEBUG: Successfully read CSV with {encoding} encoding (semicolon)", file=sys.stderr)
+                        break
+                    except Exception:
+                        continue
     
-    if df is None:
-        # Last resort: try reading line by line and skip problematic lines
+    # Last resort: manual parsing
+    if df is None or len(df.columns) == 0 or all(len(str(col)) > 50 for col in df.columns):
         try:
             with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                lines = f.readlines()
+                content = f.read()
             
-            # Find the header line (usually line with 'Campaign' or 'Search Term')
-            header_line = 0
-            for i, line in enumerate(lines[:20]):  # Check first 20 lines
-                if 'Campaign' in line or 'Search Term' in line or 'search_term' in line.lower():
-                    header_line = i
+            # Find header line
+            lines = content.split('\n')
+            header_idx = 0
+            for i, line in enumerate(lines[:30]):
+                if any(keyword in line for keyword in ['Campaign', 'Search Term', 'Customer', 'Impressions', 'Clicks']):
+                    header_idx = i
                     break
             
-            # Read from header line, skipping bad lines
+            # Parse from header
             from io import StringIO
-            csv_content = '\n'.join(lines[header_line:])
-            df = pd.read_csv(StringIO(csv_content), on_bad_lines='skip')
+            clean_content = '\n'.join(lines[header_idx:])
+            df = pd.read_csv(StringIO(clean_content), on_bad_lines='skip', engine='python')
+            print(f"DEBUG: Successfully read with manual parsing", file=sys.stderr)
         except Exception as e:
-            raise Exception(f"Unable to parse CSV file. Error: {str(e)}")
+            raise Exception(f"Unable to parse file. Please ensure it's a valid CSV or Excel file. Error: {str(e)}")
+    
+    # Validate we got meaningful data
+    if df is None or len(df.columns) == 0:
+        raise Exception("Could not read any data from the file. Please check the file format.")
+    
+    # Check if columns look garbled (very long column names suggest binary/encrypted data)
+    if all(len(str(col)) > 30 for col in df.columns):
+        raise Exception("File appears to be corrupted, encrypted, or in an unsupported format. Please upload a valid CSV or Excel file.")
+    
+    print(f"DEBUG: Original columns: {list(df.columns)}", file=sys.stderr)
     
     # Standardize column names
     df = standardize_columns(df)
+    
+    print(f"DEBUG: Standardized columns: {list(df.columns)}", file=sys.stderr)
     
     # Clean up numeric columns
     numeric_columns = ['impressions', 'clicks', 'spend', 'sales', 'orders', 'units']
     for col in numeric_columns:
         if col in df.columns:
-            # Remove currency symbols and commas, convert to numeric
             df[col] = df[col].astype(str).str.replace(r'[$,]', '', regex=True)
             df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
     
-    # Clean up percentage columns
     pct_columns = ['ctr', 'acos', 'conversion_rate']
     for col in pct_columns:
         if col in df.columns:
