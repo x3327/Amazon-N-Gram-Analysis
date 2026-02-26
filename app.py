@@ -10,7 +10,7 @@ from datetime import datetime
 from flask import Flask, render_template, request, jsonify, send_file, url_for
 from werkzeug.utils import secure_filename
 
-from utils.csv_parser import parse_csv, filter_asins, group_by_campaign, get_data_summary, validate_csv
+from utils.csv_parser import parse_csv, filter_asins, group_by_campaign, get_data_summary, validate_csv, filter_active_campaigns
 from utils.ngram_generator import generate_ngrams, get_ngram_summary
 from utils.metrics import aggregate_ngram_metrics, get_campaign_summary
 from utils.excel_writer import create_excel_output, generate_output_filename, create_asin_report
@@ -24,7 +24,7 @@ app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(__file__), 'uploads')
 app.config['OUTPUT_FOLDER'] = os.path.join(os.path.dirname(__file__), 'outputs')
 app.config['ARCHIVE_FOLDER'] = os.path.join(os.path.dirname(__file__), 'archive')
 app.config['ARCHIVE_FILE'] = os.path.join(os.path.dirname(__file__), 'archive', 'archive.json')
-app.config['ALLOWED_EXTENSIONS'] = {'csv'}
+app.config['ALLOWED_EXTENSIONS'] = {'csv', 'xlsx', 'xls'}
 
 # Ensure directories exist
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
@@ -80,7 +80,10 @@ def process_csv_file(filepath: str) -> dict:
     # Get initial summary
     initial_summary = get_data_summary(df)
     
-    # Step 2: Filter ASINs and get ASIN data separately
+    # Step 2: Filter to only active campaigns
+    df = filter_active_campaigns(df)
+    
+    # Step 3: Filter ASINs and get ASIN data separately
     df_filtered, df_asins, asin_count = filter_asins(df)
     
     # Step 3: Group by campaign
